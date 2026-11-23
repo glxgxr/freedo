@@ -11,7 +11,20 @@ and LNA, native USB. Line references are to the upstream tree at commit 6dba46e.
   frames, encrypted Data frames and 29-byte Enhanced ACKs, CRC-OK in hardware, and every Enhanced
   ACK carries a valid software MAC FCS. Tested on one board, front end KCT8103L, next to a running
   commercial bridge.
+- `sx1262_bridge.ino` with `sx1262.h` implements the bridge (README.md). It compiles; it is not
+  yet tested on the board. The default build receives only.
 - Transmit, the Enhanced ACK turnaround and the CSL timing are not tested.
+
+Open points before the first transmit build:
+
+- Preamble detector: the probe and the bridge require 32 preamble bits, the whole preamble of a
+  tado frame. The receiver has to be up before an Enhanced ACK starts, about 192 µs after our
+  Data frame ends. Compare 32 and 16 bits on the received frame counts first.
+- Front end in transmit: the bridge drives the KCT8103L CTX pin high for a frame and keeps the
+  GC1109 in bypass. Check both against the Meshtastic variant before the first frame.
+- Output power: the SX1262 runs at its lowest setting, -9 dBm. Measure what the front end adds
+  before raising it; the limit is +14 dBm e.r.p.
+- USB: whether opening the port resets the ESP32-S3, and how the daemon start copes with it.
 
 ## PHY (probe values)
 
