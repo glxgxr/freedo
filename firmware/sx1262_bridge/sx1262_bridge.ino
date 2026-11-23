@@ -42,6 +42,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "mbedtls/aes.h"
+#include "link.h"
 #include "sx1262.h"
 
 // --------------------------------------------------------------- serial layout
@@ -2442,20 +2443,17 @@ static void radioTask(void *) {
 
 // ------------------------------------------------------------------ serial task
 
-// A host that stops reading fills the 2048-byte TX buffer, and a blocking
-// Serial.write there would let the 2 s task watchdog reboot the bridge.
+// A host that stops reading fills the send buffer of the link, and a blocking
+// write there would let the 2 s task watchdog reboot the bridge.
 static void serialWriteAll(const uint8_t *p, size_t n) {
   size_t off = 0;
   while (off < n) {
     esp_task_wdt_reset();
-    int room = Serial.availableForWrite();
-    if (room <= 0) {
+    size_t chunk = linkWriteSome(p + off, n - off);
+    if (chunk == 0) {
       vTaskDelay(1);
       continue;
     }
-    size_t chunk = n - off;
-    if (chunk > (size_t)room) chunk = (size_t)room;
-    Serial.write(p + off, chunk);
     off += chunk;
   }
 }
@@ -2481,7 +2479,7 @@ static void serialReject(uint8_t status) {
 static int serialReadByte(uint64_t deadlineUs) {
   static uint64_t lastNotifyUs = 0;
   for (;;) {
-    int c = Serial.read();
+    int c = linkRead();
     if (c >= 0) {
       hostByteSeq.fetch_add(1, std::memory_order_relaxed);
       // The radio task only needs to know the host spoke, so one wake per
@@ -2604,6 +2602,7 @@ void setup() {
   Serial.setTxTimeoutMs(0);
   Serial.begin(SERIAL_BAUD);
 
+  linkBegin();
   sxBegin();
   manualReset();
 
