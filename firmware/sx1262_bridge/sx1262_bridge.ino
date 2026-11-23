@@ -44,6 +44,7 @@
 #include "mbedtls/aes.h"
 #include "link.h"
 #include "sx1262.h"
+#include "display.h"
 
 // --------------------------------------------------------------- serial layout
 
@@ -910,6 +911,7 @@ static uint8_t ccAutoAck(const uint8_t *raw, size_t rawLen, const uint8_t *coord
   if (!((mac[0] == 0x69 || mac[0] == 0x79) && mac[1] == 0xEC) || memcmp(mac + 3, coordinator, 8)) {
     return AUTOACK_NONE;
   }
+  displayNoteDevice(mac + 11);
   uint8_t ack[29] = {0x42, 0xEE, mac[2]};
   memcpy(ack + 3, mac + 11, 5);
   ack[8] = 0xC5;
@@ -1426,6 +1428,9 @@ static uint8_t cslWireStatus(uint8_t outcome) {
 }
 
 static void cslSetOutcome(uint8_t outcome) {
+  // The display counts the outcomes of the radio, not the refusals of a job before it starts.
+  if (outcome == OUT_OK) displayNoteJob(true);
+  else if (outcome == OUT_TXFAIL || outcome == OUT_NOACK || outcome == OUT_BADACK || outcome == OUT_BUSY) displayNoteJob(false);
   txn.outcome = outcome;
   txn.outcomeReady = true;
 }
@@ -1657,6 +1662,7 @@ static void cslStepAck(uint64_t now) {
   }
   memcpy(txn.ack, raw, rawLen);
   txn.ackLen = (uint8_t)rawLen;
+  displayNoteDevice(raw + 1 + 3);
   // A DIO1 edge from before the Data frame is not the edge of this ACK: an
   // anchor placed on it misses by up to a period.
   if (stampUs < txn.windowEndUs - (uint64_t)txn.job.ackTmoMs * 1000ULL) stampUs = nowUs();
@@ -2605,6 +2611,7 @@ void setup() {
   linkBegin();
   sxBegin();
   manualReset();
+  displayBegin(BANNER_STR(FIRMWARE_BUILD), &hostRequestMs);
 
   cslPoolInit();
   cslQueueClear();

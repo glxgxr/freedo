@@ -9,6 +9,7 @@ cd "$(dirname "$0")"
 
 CLI_VERSION=1.6.0
 CORE_VERSION=3.3.11   # the core of the freedo bridge firmware
+U8G2_VERSION=2.36.19  # the OLED status display
 CORE_URL=https://espressif.github.io/arduino-esp32/package_esp32_index.json
 # FlashSize 8M runs on the 16 MB flash of the V4 too; DIO works on every flash chip.
 FQBN="esp32:esp32:esp32s3:CDCOnBoot=cdc,USBMode=hwcdc,FlashSize=8M,FlashMode=dio,PSRAM=disabled"
@@ -40,6 +41,7 @@ docker run --rm -u "$(id -u):$(id -g)" \
   python:3.12-slim sh -eu -c "
     cli=/cache/bin/arduino-cli
     \$cli core list | grep -q 'esp32:esp32 *${CORE_VERSION}' || { \$cli core update-index; \$cli core install esp32:esp32@${CORE_VERSION}; }
+    \$cli lib list | grep -q '^U8g2 *${U8G2_VERSION}' || \$cli lib install U8g2@${U8G2_VERSION}
     \$cli compile --fqbn '${FQBN}' --warnings default --output-dir build \
       --build-property 'compiler.cpp.extra_flags=-DFIRMWARE_BUILD=${BUILD} -DSX1262_TX=${TX}' .
   "
