@@ -51,8 +51,9 @@ static const uint8_t SX_CRC_SEED[2] = {0xFF, 0xFF};
 static const uint8_t SX_CRC_POLY[2] = {0x80, 0x05};
 static const uint8_t SX_PACKET_VARIABLE = 0x01;  // length byte first, as PKTCTRL0 0x05
 
-// The lowest output power of the SX1262 PA, -9 dBm (paDutyCycle 2, hpMax 2, power -5). The front
-// end adds its PA after it.
+// The lowest output power of the SX1262 PA, -9 dBm (paDutyCycle 2, hpMax 2, power -5). The
+// KCT8103L adds about 13 dB (the gain table of the Meshtastic firmware), so about +4 dBm leave the
+// antenna connector; the band allows +14 dBm e.r.p.
 static const uint8_t SX_PA_CONFIG[4] = {0x02, 0x02, 0x00, 0x01};
 static const int8_t SX_TX_POWER = -5;
 static const uint8_t SX_PA_RAMP_40US = 0x02;
@@ -305,7 +306,8 @@ static void sxFrontEndInit() {
   }
 }
 
-// The KCT8103L switches its PA in with CTX. The GC1109 stays in bypass.
+// The KCT8103L transmits with CTX high (its CPS follows DIO2) and receives through its LNA with
+// CTX low; it has no transmit bypass. The GC1109 transmits through its bypass with CPS low.
 static void sxFrontEndTx(bool on) {
   if (sxKct) digitalWrite(PIN_FEM_KCT_CTX, on ? HIGH : LOW);
 }

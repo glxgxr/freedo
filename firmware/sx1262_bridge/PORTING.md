@@ -20,12 +20,17 @@ and LNA, native USB. Line references are to the upstream tree at commit 6dba46e.
   Data frame the receiver has to be up before the Enhanced ACK of the device, about 192 µs later.
 - Transmit, the Enhanced ACK turnaround and the CSL timing are not tested.
 
-Open points before the first transmit build:
+Transmit settings (checked against the Meshtastic firmware, develop 0b5871a,
+`src/mesh/LoRaFEMInterface.cpp`):
 
-- Front end in transmit: the bridge drives the KCT8103L CTX pin high for a frame and keeps the
-  GC1109 in bypass. Check both against the Meshtastic variant before the first frame.
-- Output power: the SX1262 runs at its lowest setting, -9 dBm. Measure what the front end adds
-  before raising it; the limit is +14 dBm e.r.p.
+- Front end: the KCT8103L transmits with CTX (GPIO5) high and CPS on DIO2, and receives through
+  its LNA with CTX low. It has no transmit bypass. The GC1109 transmits through its bypass with CPS
+  (GPIO46) low, about 1 dB loss. The bridge sets CTX before SetTx and clears it after TxDone, in
+  the order Meshtastic uses.
+- Output power: the SX1262 runs at -9 dBm, its lowest setting. The Meshtastic gain table gives the
+  KCT8103L about 13 dB, so about +4 dBm reach the antenna connector, under the +14 dBm e.r.p. of
+  the band and below the +11 dBm of the CC1101 bridge. Raise it only when a device does not hear
+  the bridge.
 
 ## PHY (probe values)
 
