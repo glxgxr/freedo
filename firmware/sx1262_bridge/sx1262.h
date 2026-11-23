@@ -41,7 +41,9 @@ static const uint32_t SX_FDEV = 0x006800;       // 25.391 kHz: DEVIATN 0x40
 static const uint8_t SX_SHAPING = 0x09;         // Gaussian, BT 0.5
 static const uint8_t SX_RX_BW = 0x1A;           // 156.2 kHz; the CC1101 uses 135, the SX1262 steps are 117.3 and 156.2
 static const uint16_t SX_PREAMBLE_BITS = 32;    // MDMCFG1: 4 bytes
-static const uint8_t SX_PREAMBLE_DETECT = 0x07; // 32 bits, the value the receive probe ran with
+// 16 bits. With 32, the whole preamble, the receiver caught the Enhanced ACK that follows a Data
+// frame within 0.4 ms for 64 % of the Data frames, with 16 for 86 % (live network, 10 minutes each).
+static const uint8_t SX_PREAMBLE_DETECT = 0x05;
 static const uint8_t SX_SYNC_BITS = 32;
 static const uint8_t SX_SYNC_WORD[4] = {0xD3, 0x91, 0xD3, 0x91};  // SYNC_MODE 3 sends the 16-bit word twice
 static const uint8_t SX_CRC_2_BYTE = 0x02;      // with the seed and polynomial below: CRC-16 0x8005, seed 0xFFFF
