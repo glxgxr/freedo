@@ -12,6 +12,7 @@
 #include <atomic>
 #include <string.h>
 
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -85,6 +86,23 @@ static uint8_t displayDeviceCount() {
   return n;
 }
 
+// Why the chip started last, at most 7 characters: it tells a power supply that sags from a
+// firmware that crashes.
+static const char *dispResetName() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return "Strom";
+    case ESP_RST_EXT:      return "Taste";
+    case ESP_RST_SW:       return "SW";
+    case ESP_RST_USB:      return "USB";
+    case ESP_RST_PANIC:    return "Absturz";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      return "WDT";
+    case ESP_RST_BROWNOUT: return "U tief";
+    default:               return "?";
+  }
+}
+
 static void displayDraw() {
   static const int LINE_Y[] = {10, 21, 32, 43, 54, 64};
   char line[40];
@@ -96,8 +114,13 @@ static void displayDraw() {
   dispOled.drawUTF8(0, LINE_Y[0], line);
 
 #if LINK_WIFI
-  if (WiFi.status() == WL_CONNECTED) {
+  wl_status_t wl = WiFi.status();
+  if (wl == WL_CONNECTED) {
     snprintf(line, sizeof(line), "WLAN %d dBm  .%u", (int)WiFi.RSSI(), (unsigned)WiFi.localIP()[3]);
+  } else if (wl == WL_NO_SSID_AVAIL) {
+    snprintf(line, sizeof(line), "WLAN weg: kein Netz");
+  } else if (wl == WL_CONNECT_FAILED) {
+    snprintf(line, sizeof(line), "WLAN weg: Anmeldung");
   } else {
     snprintf(line, sizeof(line), "WLAN getrennt");
   }
@@ -127,8 +150,8 @@ static void displayDraw() {
   dispOled.drawUTF8(0, LINE_Y[4], line);
 
   uint32_t mins = now / 60000UL;
-  snprintf(line, sizeof(line), "%s  %luh%02lum", SX_TX_ENABLED ? "Senden an" : "nur Empfang",
-           (unsigned long)(mins / 60), (unsigned long)(mins % 60));
+  snprintf(line, sizeof(line), "%s %luh%02lum %s", SX_TX_ENABLED ? "TX an" : "nur RX",
+           (unsigned long)(mins / 60), (unsigned long)(mins % 60), dispResetName());
   dispOled.drawUTF8(0, LINE_Y[5], line);
 
   dispOled.sendBuffer();
