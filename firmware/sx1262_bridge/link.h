@@ -27,6 +27,9 @@
 static const uint16_t LINK_TCP_PORT = 7820;
 static const char LINK_HOSTNAME[] = "freedo-bridge";
 static const uint32_t LINK_POLL_US = 50000;
+// The auto reconnect of the core gives up after some reasons (an authentication failure after
+// the first connect, for example), so a bridge without the WLAN asks again this often.
+static const uint64_t LINK_WIFI_RETRY_US = 30000000ULL;
 // A peer that vanished (power cut, cable) is dropped after about 5 + 3 * 2 s of silence.
 static const int LINK_KEEPIDLE_S = 5;
 static const int LINK_KEEPINTVL_S = 2;
@@ -37,6 +40,7 @@ static NetworkClient linkClient;
 static int linkFd = -1;
 static bool linkListening = false;
 static uint64_t linkPolledUs = 0;
+static uint64_t linkWifiUpUs = 0;  // last time the WLAN was up, or was asked again
 
 static void linkDrop() {
   linkClient.stop();
@@ -49,8 +53,15 @@ static void linkPoll() {
   uint64_t now = (uint64_t)esp_timer_get_time();
   if (now - linkPolledUs < LINK_POLL_US) return;
   linkPolledUs = now;
+  bool up = WiFi.status() == WL_CONNECTED;
+  if (up) {
+    linkWifiUpUs = now;
+  } else if (now - linkWifiUpUs >= LINK_WIFI_RETRY_US) {
+    WiFi.reconnect();
+    linkWifiUpUs = now;
+  }
   if (!linkListening) {
-    if (WiFi.status() != WL_CONNECTED) return;
+    if (!up) return;
     linkServer.begin();
     linkServer.setNoDelay(true);
     linkListening = true;
