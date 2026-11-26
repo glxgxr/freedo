@@ -1,6 +1,7 @@
 // Status display of the bridge on the OLED of the Heltec V4 (SSD1306, 128x64, I2C on GPIO 17/18,
-// reset on GPIO 21, powered by Vext). It shows the WLAN, the host link, the devices that talk to
-// this coordinator and the outcome of the transmit jobs. A task of its own on core 0 draws it,
+// reset on GPIO 21, powered by Vext). It shows the WLAN (and, every other few seconds, how often it
+// went away and the reason code of the last time), the host link, the devices that talk to this
+// coordinator and the outcome of the transmit jobs. A task of its own on core 0 draws it,
 // away from the radio task. An OLED burns in, so it lights for DISPLAY_ON_MS at boot and after
 // each press of the PRG button.
 
@@ -28,6 +29,7 @@ static const uint32_t DISPLAY_DEVICE_WINDOW_MS = 2UL * 3600UL * 1000UL;
 static const uint8_t DISPLAY_DEVICES = 16;
 static const uint8_t DISPLAY_ID_LEN = 5;  // the device part of an EUI, as the Enhanced ACK carries it
 static const uint32_t DISPLAY_HOST_MS = 5000;
+static const uint32_t DISPLAY_ALTERNATE_MS = 3000;  // WLAN line: signal, then the drops
 static const uint32_t DISPLAY_STACK = 4096;
 static const UBaseType_t DISPLAY_PRIO = 1;
 static const int DISPLAY_CORE = 0;
@@ -115,7 +117,11 @@ static void displayDraw() {
 
 #if LINK_WIFI
   wl_status_t wl = WiFi.status();
-  if (wl == WL_CONNECTED) {
+  uint32_t drops = linkWifiDrops.load(std::memory_order_relaxed);
+  if (wl == WL_CONNECTED && drops > 0 && (now / DISPLAY_ALTERNATE_MS) % 2) {
+    snprintf(line, sizeof(line), "WLAN %lux weg (%u)", (unsigned long)drops,
+             (unsigned)linkWifiReason.load(std::memory_order_relaxed));
+  } else if (wl == WL_CONNECTED) {
     snprintf(line, sizeof(line), "WLAN %d dBm  .%u", (int)WiFi.RSSI(), (unsigned)WiFi.localIP()[3]);
   } else if (wl == WL_NO_SSID_AVAIL) {
     snprintf(line, sizeof(line), "WLAN weg: kein Netz");

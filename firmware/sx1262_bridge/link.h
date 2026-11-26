@@ -20,6 +20,7 @@
 
 #if LINK_WIFI
 #include <WiFi.h>
+#include <atomic>
 #include <errno.h>
 #include "esp_timer.h"
 #include "lwip/sockets.h"
@@ -28,8 +29,9 @@ static const uint16_t LINK_TCP_PORT = 7820;
 static const char LINK_HOSTNAME[] = "freedo-bridge";
 static const uint32_t LINK_POLL_US = 50000;
 // The auto reconnect of the core gives up after some reasons (an authentication failure after
-// the first connect, for example), so a bridge without the WLAN asks again this often.
-static const uint64_t LINK_WIFI_RETRY_US = 30000000ULL;
+// the first connect, a leave of the access point), so a bridge without the WLAN asks again once
+// the station has been quiet this long. An attempt of the core ends in an event well within it.
+static const uint32_t LINK_WIFI_RETRY_MS = 5000;
 // A peer that vanished (power cut, cable) is dropped after about 5 + 3 * 2 s of silence.
 static const int LINK_KEEPIDLE_S = 5;
 static const int LINK_KEEPINTVL_S = 2;
@@ -40,7 +42,24 @@ static NetworkClient linkClient;
 static int linkFd = -1;
 static bool linkListening = false;
 static uint64_t linkPolledUs = 0;
-static uint64_t linkWifiUpUs = 0;  // last time the WLAN was up, or was asked again
+static uint32_t linkWifiAskedMs = 0;  // last time the bridge asked for the WLAN again
+// Written by the event task of the core, read by the serial and the display task.
+static std::atomic<uint32_t> linkWifiEventMs(0);  // last event of the station
+static std::atomic<uint32_t> linkWifiDrops(0);    // times the WLAN went away after an address
+static std::atomic<uint8_t> linkWifiReason(0);    // reason code of the last of them
+static bool linkWifiHadIp = false;                // event task only
+
+static void linkWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
+  if (event < ARDUINO_EVENT_WIFI_STA_START || event > ARDUINO_EVENT_WIFI_STA_LOST_IP) return;
+  linkWifiEventMs.store(millis(), std::memory_order_relaxed);
+  if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+    linkWifiHadIp = true;
+  } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED && linkWifiHadIp) {
+    linkWifiHadIp = false;
+    linkWifiReason.store(info.wifi_sta_disconnected.reason, std::memory_order_relaxed);
+    linkWifiDrops.fetch_add(1, std::memory_order_relaxed);
+  }
+}
 
 static void linkDrop() {
   linkClient.stop();
@@ -54,11 +73,11 @@ static void linkPoll() {
   if (now - linkPolledUs < LINK_POLL_US) return;
   linkPolledUs = now;
   bool up = WiFi.status() == WL_CONNECTED;
-  if (up) {
-    linkWifiUpUs = now;
-  } else if (now - linkWifiUpUs >= LINK_WIFI_RETRY_US) {
+  uint32_t nowMs = millis();
+  if (!up && nowMs - linkWifiEventMs.load(std::memory_order_relaxed) >= LINK_WIFI_RETRY_MS &&
+      nowMs - linkWifiAskedMs >= LINK_WIFI_RETRY_MS) {
     WiFi.reconnect();
-    linkWifiUpUs = now;
+    linkWifiAskedMs = nowMs;
   }
   if (!linkListening) {
     if (!up) return;
@@ -88,6 +107,8 @@ static void linkPoll() {
 
 static void linkBegin() {
 #if LINK_WIFI
+  WiFi.onEvent(linkWifiEvent);
+  linkWifiAskedMs = millis();
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(LINK_HOSTNAME);
   WiFi.setSleep(false);  // power save delays every reply by up to a beacon interval
