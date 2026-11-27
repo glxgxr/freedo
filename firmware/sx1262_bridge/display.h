@@ -1,5 +1,5 @@
 // Status display of the bridge on the OLED of the Heltec V4 (SSD1306, 128x64, I2C on GPIO 17/18,
-// reset on GPIO 21, powered by Vext). It shows the WLAN (and, every other few seconds, how often it
+// reset on GPIO 21, powered by Vext). It shows the WiFi (and, every other few seconds, how often it
 // went away and the reason code of the last time), the host link, the devices that talk to this
 // coordinator and the outcome of the transmit jobs. A task of its own on core 0 draws it,
 // away from the radio task. An OLED burns in, so it lights for DISPLAY_ON_MS at boot and after
@@ -29,7 +29,7 @@ static const uint32_t DISPLAY_DEVICE_WINDOW_MS = 2UL * 3600UL * 1000UL;
 static const uint8_t DISPLAY_DEVICES = 16;
 static const uint8_t DISPLAY_ID_LEN = 5;  // the device part of an EUI, as the Enhanced ACK carries it
 static const uint32_t DISPLAY_HOST_MS = 5000;
-static const uint32_t DISPLAY_ALTERNATE_MS = 3000;  // WLAN line: signal, then the drops
+static const uint32_t DISPLAY_ALTERNATE_MS = 3000;  // WiFi line: signal, then the drops
 static const uint32_t DISPLAY_STACK = 4096;
 static const UBaseType_t DISPLAY_PRIO = 1;
 static const int DISPLAY_CORE = 0;
@@ -92,15 +92,15 @@ static uint8_t displayDeviceCount() {
 // firmware that crashes.
 static const char *dispResetName() {
   switch (esp_reset_reason()) {
-    case ESP_RST_POWERON:  return "Strom";
-    case ESP_RST_EXT:      return "Taste";
+    case ESP_RST_POWERON:  return "power";
+    case ESP_RST_EXT:      return "reset";
     case ESP_RST_SW:       return "SW";
     case ESP_RST_USB:      return "USB";
-    case ESP_RST_PANIC:    return "Absturz";
+    case ESP_RST_PANIC:    return "panic";
     case ESP_RST_INT_WDT:
     case ESP_RST_TASK_WDT:
     case ESP_RST_WDT:      return "WDT";
-    case ESP_RST_BROWNOUT: return "U tief";
+    case ESP_RST_BROWNOUT: return "low V";
     default:               return "?";
   }
 }
@@ -119,27 +119,27 @@ static void displayDraw() {
   wl_status_t wl = WiFi.status();
   uint32_t drops = linkWifiDrops.load(std::memory_order_relaxed);
   if (wl == WL_CONNECTED && drops > 0 && (now / DISPLAY_ALTERNATE_MS) % 2) {
-    snprintf(line, sizeof(line), "WLAN %lux weg (%u)", (unsigned long)drops,
+    snprintf(line, sizeof(line), "WiFi drops %lu (%u)", (unsigned long)drops,
              (unsigned)linkWifiReason.load(std::memory_order_relaxed));
   } else if (wl == WL_CONNECTED) {
-    snprintf(line, sizeof(line), "WLAN %d dBm  .%u", (int)WiFi.RSSI(), (unsigned)WiFi.localIP()[3]);
+    snprintf(line, sizeof(line), "WiFi %d dBm  .%u", (int)WiFi.RSSI(), (unsigned)WiFi.localIP()[3]);
   } else if (wl == WL_NO_SSID_AVAIL) {
-    snprintf(line, sizeof(line), "WLAN weg: kein Netz");
+    snprintf(line, sizeof(line), "WiFi: no network");
   } else if (wl == WL_CONNECT_FAILED) {
-    snprintf(line, sizeof(line), "WLAN weg: Anmeldung");
+    snprintf(line, sizeof(line), "WiFi: auth failed");
   } else {
-    snprintf(line, sizeof(line), "WLAN getrennt");
+    snprintf(line, sizeof(line), "WiFi disconnected");
   }
 #else
-  snprintf(line, sizeof(line), "WLAN aus (nur USB)");
+  snprintf(line, sizeof(line), "WiFi off (USB only)");
 #endif
   dispOled.drawUTF8(0, LINE_Y[1], line);
 
   bool hostActive = dispHostMs != nullptr &&
                     now - dispHostMs->load(std::memory_order_relaxed) < DISPLAY_HOST_MS;
-  const char *host = "keiner";
+  const char *host = "none";
 #if LINK_WIFI
-  if (linkFd >= 0) host = hostActive ? "WLAN" : "WLAN, still";
+  if (linkFd >= 0) host = hostActive ? "WiFi" : "WiFi, idle";
   else if (hostActive) host = "USB";
 #else
   if (hostActive) host = "USB";
@@ -147,16 +147,16 @@ static void displayDraw() {
   snprintf(line, sizeof(line), "Daemon: %s", host);
   dispOled.drawUTF8(0, LINE_Y[2], line);
 
-  snprintf(line, sizeof(line), "Ventile: %u (2 h)", (unsigned)displayDeviceCount());
+  snprintf(line, sizeof(line), "Devices: %u (2 h)", (unsigned)displayDeviceCount());
   dispOled.drawUTF8(0, LINE_Y[3], line);
 
-  snprintf(line, sizeof(line), "Aufträge ok %lu F %lu",
+  snprintf(line, sizeof(line), "Jobs ok %lu fail %lu",
            (unsigned long)dispJobsOk.load(std::memory_order_relaxed),
            (unsigned long)dispJobsFailed.load(std::memory_order_relaxed));
   dispOled.drawUTF8(0, LINE_Y[4], line);
 
   uint32_t mins = now / 60000UL;
-  snprintf(line, sizeof(line), "%s %luh%02lum %s", SX_TX_ENABLED ? "TX an" : "nur RX",
+  snprintf(line, sizeof(line), "%s %luh%02lum %s", SX_TX_ENABLED ? "TX on" : "RX only",
            (unsigned long)(mins / 60), (unsigned long)(mins % 60), dispResetName());
   dispOled.drawUTF8(0, LINE_Y[5], line);
 

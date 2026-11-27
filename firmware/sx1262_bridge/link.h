@@ -1,8 +1,8 @@
-// The host link of the bridge: the native USB serial, or one TCP client over the WLAN. The bytes
+// The host link of the bridge: the native USB serial, or one TCP client over the WiFi. The bytes
 // are the serial protocol of the CC1101 bridge either way, so the host reads a TCP link as a
 // serial port (for example a pty from socat). Only the serial task calls this.
 //
-// The WLAN starts only when wifi_secrets.h exists next to the sketch (see
+// The WiFi starts only when wifi_secrets.h exists next to the sketch (see
 // wifi_secrets.h.example; git ignores the file). Without it the bridge speaks USB alone.
 // While a TCP client is connected the bridge ignores USB input; a new connection replaces the
 // old one, so a daemon that restarts gets the bridge back at once.
@@ -29,7 +29,7 @@ static const uint16_t LINK_TCP_PORT = 7820;
 static const char LINK_HOSTNAME[] = "freedo-bridge";
 static const uint32_t LINK_POLL_US = 50000;
 // The auto reconnect of the core gives up after some reasons (an authentication failure after
-// the first connect, a leave of the access point), so a bridge without the WLAN asks again once
+// the first connect, a leave of the access point), so a bridge without the WiFi asks again once
 // the station has been quiet this long. An attempt of the core ends in an event well within it.
 static const uint32_t LINK_WIFI_RETRY_MS = 5000;
 // A peer that vanished (power cut, cable) is dropped after about 5 + 3 * 2 s of silence.
@@ -42,10 +42,10 @@ static NetworkClient linkClient;
 static int linkFd = -1;
 static bool linkListening = false;
 static uint64_t linkPolledUs = 0;
-static uint32_t linkWifiAskedMs = 0;  // last time the bridge asked for the WLAN again
+static uint32_t linkWifiAskedMs = 0;  // last time the bridge asked for the WiFi again
 // Written by the event task of the core, read by the serial and the display task.
 static std::atomic<uint32_t> linkWifiEventMs(0);  // last event of the station
-static std::atomic<uint32_t> linkWifiDrops(0);    // times the WLAN went away after an address
+static std::atomic<uint32_t> linkWifiDrops(0);    // times the WiFi went away after an address
 static std::atomic<uint8_t> linkWifiReason(0);    // reason code of the last of them
 static bool linkWifiHadIp = false;                // event task only
 
@@ -66,7 +66,7 @@ static void linkDrop() {
   linkFd = -1;
 }
 
-// Take a new TCP client, at most every LINK_POLL_US. The server starts once the WLAN has an
+// Take a new TCP client, at most every LINK_POLL_US. The server starts once the WiFi has an
 // address.
 static void linkPoll() {
   uint64_t now = (uint64_t)esp_timer_get_time();
