@@ -33,7 +33,7 @@ freedo.*.yml
 
 # Arduino build output of the bridge firmware
 firmware/*/build/
-# WLAN credentials of the SX1262 bridge, see firmware/sx1262_bridge/wifi_secrets.h.example
+# WiFi credentials of the SX1262 bridge, see firmware/sx1262_bridge/wifi_secrets.h.example
 firmware/sx1262_bridge/wifi_secrets.h
 
 # Bench output: captures, snapshots and per-test logs

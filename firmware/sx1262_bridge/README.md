@@ -42,6 +42,27 @@ The banner names the build: `CC1101BRIDGE v2.11 (sx1262-rx-<commit>)` without tr
 Or in the browser with https://espressif.github.io/esptool-js/ (Chrome or Edge, address 0x0). If the
 board does not answer: hold PRG, press RST, release PRG.
 
+## WiFi link
+
+Without `wifi_secrets.h` the host link is the USB serial. Copy `wifi_secrets.h.example` to
+`wifi_secrets.h` (git ignores it) and build again: the bridge joins the WiFi and serves the serial
+protocol on TCP port 7820 to one client. A new connection replaces the old one, so only one daemon
+may use the bridge. The daemon opens a serial port, so the host turns the TCP link into a pty:
+
+    socat tcp:<bridge>:7820,nodelay,keepalive pty,link=/tmp/bridge,raw,echo=0 &
+    freedo --port=/tmp/bridge
+
+When the WiFi stays away for 5 s, the bridge asks for it again. `LINK_ALLOWED_IP` takes the link
+only from the host of the daemon. The image holds the WiFi password.
+
+## Display
+
+The OLED lights for a minute at boot and at each press of PRG. Its lines: the build; the WiFi signal
+and the last byte of the address, every few seconds in turn with the number of drops and the reason
+code of the last one; the host link (USB, WiFi, idle or none); the devices of this coordinator heard
+in the last 2 hours; the transmit jobs done and failed; TX or RX only, the uptime and the reason of
+the last reset (power, reset, SW, USB, panic, WDT, low V).
+
 ## Transmit
 
 Only a `TX=1` build transmits, and only on the tado network of a freedo installation with no

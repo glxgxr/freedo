@@ -1,34 +1,33 @@
 # freedo SX1262 probe
 
-Empfangstest: Hört ein SX1262 (diymore/Heltec ESP32 LoRa V4) das 868-MHz-Funknetz von tado V3+?
-Der Sketch sendet nie etwas. Er zeigt nur an, was er empfängt. Die Funkparameter stammen aus
-`tadoRegs` in freedo `cc1101/cc1101.go`.
+Receive test: does an SX1262 (Heltec WiFi LoRa 32 V4 and its clones) hear the 868 MHz network of
+tado V3+? The sketch never transmits. It only prints what it receives. The radio settings come
+from `tadoRegs` in freedo `cc1101/cc1101.go`.
 
-## Bauen (Homelab, im Container)
+## Build (in a container)
 
     ./build.sh
 
-Ergebnis: `build/sx1262_probe.ino.merged.bin` (Bootloader, Partitionen und App in einer Datei,
-Offset 0x0). Werkzeuge: arduino-cli 1.6.0, ESP32-Core 3.3.11 (wie bei der freedo-Bridge-Firmware)
-und RadioLib 7.8.1.
+The result is `build/sx1262_probe.ino.merged.bin` (bootloader, partitions and app in one file,
+offset 0x0). Tools: arduino-cli 1.6.0, ESP32 core 3.3.11 (as for the freedo bridge firmware) and
+RadioLib 7.8.1.
 
-## Flashen (nur am PC)
+## Flash
 
-    scp <homelab>:<checkout>/firmware/sx1262_probe/build/sx1262_probe.ino.merged.bin .
-    esptool --chip esp32s3 --port <PORT> write-flash 0x0 sx1262_probe.ino.merged.bin
+    esptool --chip esp32s3 --port <PORT> write-flash 0x0 build/sx1262_probe.ino.merged.bin
 
-Ohne esptool geht es im Browser mit https://espressif.github.io/esptool-js/ (Chrome/Edge,
-Adresse 0x0). Findet esptool das Board nicht: PRG gedrückt halten, RST kurz drücken, PRG loslassen.
+Or in the browser with https://espressif.github.io/esptool-js/ (Chrome or Edge, address 0x0). If the
+board does not answer: hold PRG, press RST, release PRG.
 
-## Ausgabe
+## Output
 
-Serieller Monitor auf dem USB-Port, 115200 Baud. Die Ausgabe geht zusätzlich auf UART0.
+Serial monitor on the USB port, 115200 baud. The output also goes to UART0.
 
-- `# ...` sind Statusmeldungen. Alle 60 s kommen Konfiguration und Zähler.
-- Ein empfangenes Paket: `<Sekunden> [CRC-OK rssi=-71 mode=HW] <Hex>`. Das Format entspricht
-  `freedo-dev rx`, freedos Werkzeuge können es also lesen.
-- PRG schaltet zwischen `HW` (der SX1262 prüft die CRC) und `RAW` (der Sketch prüft sie).
-- `beginFSK failed: -2`: Auf dem SPI-Bus antwortet kein SX1262, die Pinbelegung des Boards weicht ab.
+- `# ...` lines are status messages. Every 60 s the configuration and the counters follow.
+- A received frame: `<seconds> [CRC-OK rssi=-71 mode=HW] <hex>`. The format is the one of
+  `freedo-dev rx`, so the freedo tools read it.
+- PRG switches between `HW` (the SX1262 checks the CRC) and `RAW` (the sketch checks it).
+- `beginFSK failed: -2`: no SX1262 answers on the SPI bus, the pins of the board differ.
 
-Ein Mitschnitt enthält die Adressen der eigenen Geräte. So nicht öffentlich posten,
-vorher unkenntlich machen (siehe freedo `CONTRIBUTING.md`).
+A capture holds the addresses of your own devices. Do not post it as it is: mask them first (see
+freedo `CONTRIBUTING.md`).
