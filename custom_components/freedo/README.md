@@ -11,7 +11,7 @@ limits. The routes behind each entity are in the [API reference](../../docs/API.
 
 - Home Assistant 2026.8 or later (`via_device_id` in the device info).
 - A freedo daemon that Home Assistant can reach on `http_listen` (default port
-  8080).
+  8080), or through a reverse proxy that serves HTTPS.
 
 ## Installation
 
@@ -36,6 +36,9 @@ For a daemon that runs elsewhere, add the integration from Settings -> Devices
 & services and enter:
 
 - Host and port of the daemon.
+- HTTPS: on for a daemon behind a reverse proxy that serves HTTPS. The port is
+  then the port of the proxy, usually 443. The integration checks the
+  certificate.
 - API token. The integration sends it as `Authorization: Bearer <token>`.
   Leave it empty when the daemon has no token.
 

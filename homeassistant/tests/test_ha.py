@@ -33,6 +33,7 @@ from homeassistant.const import (  # noqa: E402
     ATTR_TEMPERATURE,
     CONF_HOST,
     CONF_PORT,
+    CONF_SSL,
 )
 from homeassistant.data_entry_flow import FlowResultType  # noqa: E402
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError  # noqa: E402
@@ -4357,6 +4358,19 @@ async def test_the_hub_links_to_the_dashboard(hass, client):
     entry = await setup_entry(hass, client)
     hub = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, entry.entry_id), entry.entry_id)
     assert hub.configuration_url == "http://127.0.0.1:8080/"
+
+
+async def test_an_entry_with_https_connects_and_links_over_it(hass, client):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_HOST: "freedo.example", CONF_PORT: 443, CONF_SSL: True}
+    )
+    entry.add_to_hass(hass)
+    with patch("custom_components.freedo.FreedoClient", return_value=client) as made:
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert made.call_args.kwargs["ssl"] is True
+    hub = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, entry.entry_id), entry.entry_id)
+    assert hub.configuration_url == "https://freedo.example:443/"
 
 
 async def test_the_hub_of_the_add_on_links_to_its_ingress_page(hass, client):

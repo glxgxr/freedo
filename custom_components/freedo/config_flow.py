@@ -14,7 +14,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
-from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -62,9 +62,11 @@ _TOKEN_SELECTOR = selector.TextSelector(
 )
 
 
-async def _validate(hass: HomeAssistant, host: str, port: int, token: str) -> str | None:
+async def _validate(
+    hass: HomeAssistant, host: str, port: int, token: str, ssl: bool = False
+) -> str | None:
     """Return an error key, or None when the daemon accepts the token."""
-    client = FreedoClient(async_get_clientsession(hass), host, port, token)
+    client = FreedoClient(async_get_clientsession(hass), host, port, token, ssl=ssl)
     try:
         await client.home()
     except FreedoAuthError:
@@ -125,13 +127,14 @@ class FreedoConfigFlow(ConfigFlow, domain=DOMAIN):
             host = user_input[CONF_HOST].strip()
             port = int(user_input[CONF_PORT])
             token = user_input.get(CONF_TOKEN, "")
+            ssl = user_input.get(CONF_SSL, False)
             await self.async_set_unique_id(f"{host}:{port}")
             self._abort_if_unique_id_configured()
-            error = await _validate(self.hass, host, port, token)
+            error = await _validate(self.hass, host, port, token, ssl)
             if error is None:
                 return self.async_create_entry(
                     title=f"freedo {host}",
-                    data={CONF_HOST: host, CONF_PORT: port, CONF_TOKEN: token},
+                    data={CONF_HOST: host, CONF_PORT: port, CONF_TOKEN: token, CONF_SSL: ssl},
                 )
             errors["base"] = error
         schema = vol.Schema(
@@ -140,6 +143,7 @@ class FreedoConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=65535)
                 ),
+                vol.Optional(CONF_SSL, default=False): bool,
                 vol.Optional(CONF_TOKEN, default=""): _TOKEN_SELECTOR,
             }
         )
@@ -162,7 +166,11 @@ class FreedoConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             token = user_input.get(CONF_TOKEN, "")
             error = await _validate(
-                self.hass, entry.data[CONF_HOST], entry.data[CONF_PORT], token
+                self.hass,
+                entry.data[CONF_HOST],
+                entry.data[CONF_PORT],
+                token,
+                entry.data.get(CONF_SSL, False),
             )
             if error is None:
                 return self.async_update_reload_and_abort(

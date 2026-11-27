@@ -44,10 +44,13 @@ class FreedoClient:
         port: int,
         token: str | None = None,
         timeout: float = 10.0,
+        ssl: bool = False,
     ) -> None:
         if ":" in host and not host.startswith("["):
             host = f"[{host}]"
-        self._base = f"http://{host}:{port}"
+        # ssl: the daemon sits behind a reverse proxy that serves HTTPS. The
+        # session checks the certificate.
+        self._base = f"{'https' if ssl else 'http'}://{host}:{port}"
         self._session = session
         self._token = token or None
         self._timeout = timeout

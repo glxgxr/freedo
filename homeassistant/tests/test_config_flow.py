@@ -1,5 +1,5 @@
-"""Home Assistant tests of the discovery step of the config flow, which the
-freedo add-on feeds through the Supervisor.
+"""Home Assistant tests of the config flow: the discovery step, which the
+freedo add-on feeds through the Supervisor, the user step and the reauth.
 
 They run only with pytest-homeassistant-custom-component installed.
 """
@@ -11,7 +11,7 @@ import pytest
 pytest.importorskip("pytest_homeassistant_custom_component")
 
 from homeassistant import config_entries  # noqa: E402
-from homeassistant.const import CONF_HOST, CONF_PORT  # noqa: E402
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL  # noqa: E402
 from homeassistant.data_entry_flow import FlowResultType  # noqa: E402
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo  # noqa: E402
 from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: E402
@@ -39,9 +39,11 @@ class DaemonClient:
     """The client of the config flow: home() answers or raises."""
 
     error: Exception | None = None
+    # (host, port, token, ssl) of each client the flow made.
+    made: list[tuple] = []
 
-    def __init__(self, session, host, port, token) -> None:
-        self.args = (host, port, token)
+    def __init__(self, session, host, port, token, ssl=False) -> None:
+        self.made.append((host, port, token, ssl))
 
     async def home(self):
         if self.error:
@@ -143,3 +145,48 @@ async def test_discovery_without_a_token_sends_an_empty_one(hass):
     ):
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["data"] == {CONF_HOST: HOST, CONF_PORT: PORT, "token": ""}
+
+
+@pytest.mark.parametrize(("chosen", "ssl"), [({}, False), ({CONF_SSL: True}, True)])
+async def test_the_user_step_connects_over_the_chosen_scheme_and_stores_it(hass, chosen, ssl):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["step_id"] == "user"
+    DaemonClient.made.clear()
+    with (
+        patch("custom_components.freedo.config_flow.FreedoClient", DaemonClient),
+        patch("custom_components.freedo.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_HOST: "freedo.example", CONF_PORT: 443, "token": TOKEN, **chosen},
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        CONF_HOST: "freedo.example", CONF_PORT: 443, "token": TOKEN, CONF_SSL: ssl
+    }
+    assert DaemonClient.made == [("freedo.example", 443, TOKEN, ssl)]
+
+
+async def test_the_reauth_checks_the_token_over_https_when_the_entry_uses_it(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_HOST: "freedo.example", CONF_PORT: 443, "token": "old-token", CONF_SSL: True},
+        unique_id="freedo.example:443",
+    )
+    entry.add_to_hass(hass)
+    result = await entry.start_reauth_flow(hass)
+    assert result["step_id"] == "reauth_confirm"
+    DaemonClient.made.clear()
+    with (
+        patch("custom_components.freedo.config_flow.FreedoClient", DaemonClient),
+        patch("custom_components.freedo.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"token": TOKEN}
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert DaemonClient.made == [("freedo.example", 443, TOKEN, True)]
+    assert entry.data["token"] == TOKEN

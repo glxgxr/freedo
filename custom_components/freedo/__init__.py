@@ -7,7 +7,7 @@ import logging
 import re
 
 from homeassistant.config_entries import SOURCE_HASSIO
-from homeassistant.const import CONF_HOST, CONF_PORT, Platform
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     config_validation as cv,
@@ -61,6 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FreedoConfigEntry) -> bo
         entry.data[CONF_HOST],
         entry.data[CONF_PORT],
         entry.data.get(CONF_TOKEN),
+        ssl=entry.data.get(CONF_SSL, False),
     )
     coordinator = FreedoCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
@@ -94,7 +95,8 @@ def _dashboard_url(entry: FreedoConfigEntry) -> str:
     host = entry.data[CONF_HOST]
     if entry.source == SOURCE_HASSIO:
         return f"homeassistant://hassio/ingress/{host.replace('-', '_')}"
-    return f"http://{host}:{entry.data[CONF_PORT]}/"
+    scheme = "https" if entry.data.get(CONF_SSL, False) else "http"
+    return f"{scheme}://{host}:{entry.data[CONF_PORT]}/"
 
 
 @callback

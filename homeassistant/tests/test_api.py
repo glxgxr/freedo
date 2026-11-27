@@ -63,6 +63,12 @@ def test_bearer_header_and_url():
     assert call["json"] is None
 
 
+def test_ssl_uses_https():
+    session = FakeSession({("GET", "/api/home"): (200, {"away": False})})
+    run(FreedoClient(session, "10.0.0.2", 8080, "s3cret", ssl=True).home())
+    assert session.calls[0]["url"] == "https://10.0.0.2:8080/api/home"
+
+
 def test_no_token_sends_no_authorization():
     session = FakeSession({("GET", "/api/home"): (200, {"away": False})})
     run(FreedoClient(session, "h", 8080, "").home())

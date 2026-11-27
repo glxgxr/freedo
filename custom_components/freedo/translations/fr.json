@@ -6,11 +6,13 @@
         "data": {
           "host": "Hôte",
           "port": "Port",
+          "ssl": "Utiliser HTTPS",
           "token": "Jeton d'API"
         },
         "data_description": {
           "host": "Adresse de freedo.",
           "port": "Port de l'API HTTP de freedo (http_listen).",
+          "ssl": "Se connecter en HTTPS, pour un freedo derrière un proxy inverse avec un certificat. Le port est alors celui du proxy, en général 443.",
           "token": "Jeton Bearer de l'API. Laissez vide si freedo n'a pas de jeton."
         }
       },
